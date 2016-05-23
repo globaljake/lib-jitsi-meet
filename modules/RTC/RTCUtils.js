@@ -824,7 +824,7 @@ var RTCUtils = {
         }
 
         if (RTCBrowserType.isReactNative()) {
-            MediaStreamTrack.getSources(sourceInfos => {
+            MediaStreamTrack.getSources(function(sourceInfos){
                 console.log(sourceInfos);
                 var videoSourceId;
                 for (var i = 0; i < sourceInfos.length; i++) {
