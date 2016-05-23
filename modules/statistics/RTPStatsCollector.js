@@ -74,7 +74,7 @@ function getStatValue(item, name) {
       // The implementation provided by react-native-webrtc follows the
       // Objective-C WebRTC API: RTCStatsReport has a values property of type
       // Array in which each element is a key-value pair.
-      item.values.some(pair => {
+      item.values.some(function(pair){
         if (pair.hasOwnProperty(key)) {
           value = pair[key];
           return true;
