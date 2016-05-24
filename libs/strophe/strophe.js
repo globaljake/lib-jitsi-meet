@@ -4184,7 +4184,7 @@ Strophe.Bosh = function(connection) {
 
     // default BOSH values
     this.hold = 1;
-    this.wait = 60;
+    this.wait = 0;
     this.window = 5;
     this.errors = 0;
 
