@@ -800,10 +800,10 @@ var RTCUtils = {
         var resolution = options.resolution;
         var constraints = options.constraints;
         if (constraints && constraints.audio && um.indexOf('audio') >= 0 && um.indexOf('video') < 0) {
-            constraints = {audio: constraints.audio};
+            constraints = {audio: constraints.audio, video: false};
         }
         if (constraints && constraints.video && um.indexOf('video') >= 0 && um.indexOf('audio') < 0) {
-            constraints = {video: constraints.video};
+            constraints = {video: constraints.video, audio: false};
         }
         if (!constraints) {
             constraints = getConstraints(um, options);
