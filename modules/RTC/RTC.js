@@ -6,7 +6,7 @@ var RTCEvents = require("../../service/RTC/RTCEvents.js");
 var RTCUtils = require("./RTCUtils.js");
 var JitsiTrack = require("./JitsiTrack");
 var JitsiLocalTrack = require("./JitsiLocalTrack.js");
-var DataChannels = require("./DataChannels");
+// var DataChannels = require("./DataChannels");
 var JitsiRemoteTrack = require("./JitsiRemoteTrack.js");
 var MediaType = require("../../service/RTC/MediaType");
 var VideoType = require("../../service/RTC/VideoType");
@@ -97,9 +97,9 @@ RTC.obtainAudioAndVideoPermissions = function (options) {
 };
 
 RTC.prototype.onIncommingCall = function(event) {
-    if(this.options.config.openSctp)
-        this.dataChannels = new DataChannels(event.peerconnection,
-            this.eventEmitter);
+    // if(this.options.config.openSctp)
+    //     this.dataChannels = new DataChannels(event.peerconnection,
+    //         this.eventEmitter);
     // Add local Tracks to the ChatRoom
     this.localTracks.forEach(function(localTrack) {
         var ssrcInfo = null;

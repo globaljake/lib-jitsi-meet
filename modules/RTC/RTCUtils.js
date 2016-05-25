@@ -7,12 +7,12 @@
 
 var logger = require("jitsi-meet-logger").getLogger(__filename);
 var RTCBrowserType = require("./RTCBrowserType");
-var Resolutions = require("../../service/RTC/Resolutions");
+// var Resolutions = require("../../service/RTC/Resolutions");
 var RTCEvents = require("../../service/RTC/RTCEvents");
-var AdapterJS = require("./adapter.screenshare");
+// var AdapterJS = require("./adapter.screenshare");
 var SDPUtil = require("../xmpp/SDPUtil");
 var EventEmitter = require("events");
-var screenObtainer = require("./ScreenObtainer");
+// var screenObtainer = require("./ScreenObtainer");
 var JitsiTrackErrors = require("../../JitsiTrackErrors");
 var MediaType = require("../../service/RTC/MediaType");
 var VideoType = require("../../service/RTC/VideoType");
@@ -67,11 +67,12 @@ var rtcReady = false;
 function setResolutionConstraints(constraints, resolution) {
     var isAndroid = RTCBrowserType.isAndroid();
 
-    if (Resolutions[resolution]) {
-        constraints.video.mandatory.minWidth = Resolutions[resolution].width;
-        constraints.video.mandatory.minHeight = Resolutions[resolution].height;
-    }
-    else if (isAndroid) {
+    // if (Resolutions[resolution]) {
+    //     constraints.video.mandatory.minWidth = Resolutions[resolution].width;
+    //     constraints.video.mandatory.minHeight = Resolutions[resolution].height;
+    // }
+    // else if (isAndroid) {
+    if (isAndroid) {
         // FIXME can't remember if the purpose of this was to always request
         //       low resolution on Android ? if yes it should be moved up front
         constraints.video.mandatory.minWidth = 320;
@@ -170,14 +171,14 @@ function getConstraints(um, options) {
                 },
                 optional: []
             };
-        } else if (RTCBrowserType.isTemasysPluginUsed()) {
-            constraints.video = {
-                optional: [
-                    {
-                        sourceId: AdapterJS.WebRTCPlugin.plugin.screensharingKey
-                    }
-                ]
-            };
+        // } else if (RTCBrowserType.isTemasysPluginUsed()) {
+        //     constraints.video = {
+        //         optional: [
+        //             {
+        //                 sourceId: AdapterJS.WebRTCPlugin.plugin.screensharingKey
+        //             }
+        //         ]
+        //     };
         } else if (RTCBrowserType.isFirefox()) {
             constraints.video = {
                 mozMediaSource: "window",
@@ -342,7 +343,7 @@ function onMediaDevicesListChanged(devices) {
 function onReady (options, GUM) {
     rtcReady = true;
     eventEmitter.emit(RTCEvents.RTC_READY, true);
-    screenObtainer.init(options, GUM);
+    // screenObtainer.init(options, GUM);
 
     if (isDeviceChangeEventSupported && RTCUtils.isDeviceListAvailable()) {
         navigator.mediaDevices.addEventListener('devicechange', function () {
@@ -707,65 +708,65 @@ var RTCUtils = {
                         return this.audioTracks;
                     };
                 }
-            }
+            // }
             // Detect IE/Safari
-            else if (RTCBrowserType.isTemasysPluginUsed()) {
-
-                //AdapterJS.WebRTCPlugin.setLogLevel(
-                //    AdapterJS.WebRTCPlugin.PLUGIN_LOG_LEVELS.VERBOSE);
-                var self = this;
-                AdapterJS.webRTCReady(function (isPlugin) {
-
-                    self.peerconnection = RTCPeerConnection;
-                    self.getUserMedia = window.getUserMedia;
-                    self.enumerateDevices = enumerateDevicesThroughMediaStreamTrack;
-                    self.attachMediaStream = wrapAttachMediaStream(function (element, stream) {
-
-                        if (stream.id === "dummyAudio" || stream.id === "dummyVideo") {
-                            return;
-                        }
-
-                        var isVideoStream = !!stream.getVideoTracks().length;
-                        if (isVideoStream && !$(element).is(':visible')) {
-                            throw new Error('video element must be visible to attach video stream');
-                        }
-
-                        return attachMediaStream(element, stream);
-                    });
-                    self.getStreamID = function (stream) {
-                        return SDPUtil.filter_special_chars(stream.label);
-                    };
-                    self.getVideoSrc = function (element) {
-                        if (!element) {
-                            logger.warn("Attempt to get video SRC of null element");
-                            return null;
-                        }
-                        var children = element.children;
-                        for (var i = 0; i !== children.length; ++i) {
-                            if (children[i].name === 'streamId') {
-                                return children[i].value;
-                            }
-                        }
-                        //logger.info(element.id + " SRC: " + src);
-                        return null;
-                    };
-                    self.setVideoSrc = function (element, src) {
-                        //logger.info("Set video src: ", element, src);
-                        if (!src) {
-                            attachMediaStream(element, null);
-                        } else {
-                            AdapterJS.WebRTCPlugin.WaitForPluginReady();
-                            var stream
-                                = AdapterJS.WebRTCPlugin.plugin
-                                    .getStreamWithId(
-                                        AdapterJS.WebRTCPlugin.pageId, src);
-                            attachMediaStream(element, stream);
-                        }
-                    };
-
-                    onReady(options, self.getUserMediaWithConstraints);
-                    resolve();
-                });
+            // else if (RTCBrowserType.isTemasysPluginUsed()) {
+            //
+            //     //AdapterJS.WebRTCPlugin.setLogLevel(
+            //     //    AdapterJS.WebRTCPlugin.PLUGIN_LOG_LEVELS.VERBOSE);
+            //     var self = this;
+            //     AdapterJS.webRTCReady(function (isPlugin) {
+            //
+            //         self.peerconnection = RTCPeerConnection;
+            //         self.getUserMedia = window.getUserMedia;
+            //         self.enumerateDevices = enumerateDevicesThroughMediaStreamTrack;
+            //         self.attachMediaStream = wrapAttachMediaStream(function (element, stream) {
+            //
+            //             if (stream.id === "dummyAudio" || stream.id === "dummyVideo") {
+            //                 return;
+            //             }
+            //
+            //             var isVideoStream = !!stream.getVideoTracks().length;
+            //             if (isVideoStream && !$(element).is(':visible')) {
+            //                 throw new Error('video element must be visible to attach video stream');
+            //             }
+            //
+            //             return attachMediaStream(element, stream);
+            //         });
+            //         self.getStreamID = function (stream) {
+            //             return SDPUtil.filter_special_chars(stream.label);
+            //         };
+            //         self.getVideoSrc = function (element) {
+            //             if (!element) {
+            //                 logger.warn("Attempt to get video SRC of null element");
+            //                 return null;
+            //             }
+            //             var children = element.children;
+            //             for (var i = 0; i !== children.length; ++i) {
+            //                 if (children[i].name === 'streamId') {
+            //                     return children[i].value;
+            //                 }
+            //             }
+            //             //logger.info(element.id + " SRC: " + src);
+            //             return null;
+            //         };
+            //         self.setVideoSrc = function (element, src) {
+            //             //logger.info("Set video src: ", element, src);
+            //             if (!src) {
+            //                 attachMediaStream(element, null);
+            //             } else {
+            //                 AdapterJS.WebRTCPlugin.WaitForPluginReady();
+            //                 var stream
+            //                     = AdapterJS.WebRTCPlugin.plugin
+            //                         .getStreamWithId(
+            //                             AdapterJS.WebRTCPlugin.pageId, src);
+            //                 attachMediaStream(element, stream);
+            //             }
+            //         };
+            //
+            //         onReady(options, self.getUserMediaWithConstraints);
+            //         resolve();
+            //     });
             } else {
                 try {
                     logger.error('Browser does not appear to be WebRTC-capable');
@@ -797,7 +798,16 @@ var RTCUtils = {
     getUserMediaWithConstraints: function ( um, success_callback, failure_callback, options) {
         options = options || {};
         var resolution = options.resolution;
-        var constraints = getConstraints(um, options);
+        var constraints = options.constraints;
+        if (constraints && constraints.audio && um.indexOf('audio') >= 0 && um.indexOf('video') < 0) {
+            constraints = {audio: constraints.audio};
+        }
+        if (constraints && constraints.video && um.indexOf('video') >= 0 && um.indexOf('audio') < 0) {
+            constraints = {video: constraints.video};
+        }
+        if (!constraints) {
+            constraints = getConstraints(um, options);
+        }
 
         logger.info("Get media constraints", constraints);
 
@@ -846,10 +856,10 @@ var RTCUtils = {
             };
 
             options.devices = options.devices || ['audio', 'video'];
-            if(!screenObtainer.isSupported()
-                && options.devices.indexOf("desktop") !== -1){
-                reject(new Error("Desktop sharing is not supported!"));
-            }
+            // if(!screenObtainer.isSupported()
+            //     && options.devices.indexOf("desktop") !== -1){
+            //     reject(new Error("Desktop sharing is not supported!"));
+            // }
             if (RTCBrowserType.isFirefox()
                     // XXX The react-native-webrtc implementation that we
                     // utilize on React Native at the time of this writing does
@@ -868,10 +878,10 @@ var RTCUtils = {
                     "video": GUM.bind(self, ["video"])
                 };
 
-                if(screenObtainer.isSupported()){
-                    deviceGUM["desktop"] = screenObtainer.obtainStream.bind(
-                        screenObtainer);
-                }
+                // if(screenObtainer.isSupported()){
+                //     deviceGUM["desktop"] = screenObtainer.obtainStream.bind(
+                //         screenObtainer);
+                // }
                 // With FF/IE we can't split the stream into audio and video because FF
                 // doesn't support media stream constructors. So, we need to get the
                 // audio stream separately from the video stream using two distinct GUM
@@ -909,35 +919,35 @@ var RTCUtils = {
                                     options.devices));
                                 return;
                             }
-                            if(hasDesktop) {
-                                screenObtainer.obtainStream(
-                                    function (desktopStream) {
-                                        successCallback({audioVideo: stream,
-                                            desktopStream: desktopStream});
-                                    }, function (error) {
-                                        self.stopMediaStream(stream);
-                                        reject(
-                                            JitsiTrackErrors.parseError(error,
-                                                options.devices));
-                                    });
-                            } else {
+                            // if(hasDesktop) {
+                            //     screenObtainer.obtainStream(
+                            //         function (desktopStream) {
+                            //             successCallback({audioVideo: stream,
+                            //                 desktopStream: desktopStream});
+                            //         }, function (error) {
+                            //             self.stopMediaStream(stream);
+                            //             reject(
+                            //                 JitsiTrackErrors.parseError(error,
+                            //                     options.devices));
+                            //         });
+                            // } else {
                                 successCallback({audioVideo: stream});
-                            }
+                            // }
                         },
                         function (error) {
                             reject(JitsiTrackErrors.parseError(error,
                                 options.devices));
                         },
                         options);
-                } else if (hasDesktop) {
-                    screenObtainer.obtainStream(
-                        function (stream) {
-                            successCallback({desktopStream: stream});
-                        }, function (error) {
-                            reject(
-                                JitsiTrackErrors.parseError(error,
-                                    ["desktop"]));
-                        });
+                // } else if (hasDesktop) {
+                //     screenObtainer.obtainStream(
+                //         function (stream) {
+                //             successCallback({desktopStream: stream});
+                //         }, function (error) {
+                //             reject(
+                //                 JitsiTrackErrors.parseError(error,
+                //                     ["desktop"]));
+                //         });
                 }
             }
         }.bind(this));
@@ -1010,7 +1020,8 @@ var RTCUtils = {
      * @returns {boolean}
      */
     isDesktopSharingEnabled: function () {
-        return screenObtainer.isSupported();
+        return false;
+        // return screenObtainer.isSupported();
     },
     /**
      * Sets current audio output device.

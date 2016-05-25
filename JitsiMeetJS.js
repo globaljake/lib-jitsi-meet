@@ -11,26 +11,26 @@ var JitsiTrackErrors = require("./JitsiTrackErrors");
 var Logger = require("jitsi-meet-logger");
 var MediaType = require("./service/RTC/MediaType");
 var RTC = require("./modules/RTC/RTC");
-var RTCUIHelper = require("./modules/RTC/RTCUIHelper");
+// var RTCUIHelper = require("./modules/RTC/RTCUIHelper");
 var Statistics = require("./modules/statistics/statistics");
-var Resolutions = require("./service/RTC/Resolutions");
-var ScriptUtil = require("./modules/util/ScriptUtil");
+// var Resolutions = require("./service/RTC/Resolutions");
+// var ScriptUtil = require("./modules/util/ScriptUtil");
 
-function getLowerResolution(resolution) {
-    if(!Resolutions[resolution])
-        return null;
-    var order = Resolutions[resolution].order;
-    var res = null;
-    var resName = null;
-    for(var i in Resolutions) {
-        var tmp = Resolutions[i];
-        if (!res || (res.order < tmp.order && tmp.order < order)) {
-            resName = i;
-            res = tmp;
-        }
-    }
-    return resName;
-}
+// function getLowerResolution(resolution) {
+//     if(!Resolutions[resolution])
+//         return null;
+//     var order = Resolutions[resolution].order;
+//     var res = null;
+//     var resName = null;
+//     for(var i in Resolutions) {
+//         var tmp = Resolutions[i];
+//         if (!res || (res.order < tmp.order && tmp.order < order)) {
+//             resName = i;
+//             res = tmp;
+//         }
+//     }
+//     return resName;
+// }
 
 /**
  * Namespace for the interface of Jitsi Meet Library.
@@ -134,16 +134,16 @@ var LibJitsiMeet = {
                 });
                 if(!this._gumFailedHandler.length)
                     Statistics.sendGetUserMediaFailed(error);
-                if(error === JitsiTrackErrors.UNSUPPORTED_RESOLUTION) {
-                    var oldResolution = options.resolution || '360';
-                    var newResolution = getLowerResolution(oldResolution);
-                    if(newResolution === null)
-                        return Promise.reject(error);
-                    options.resolution = newResolution;
-                    logger.debug("Retry createLocalTracks with resolution",
-                                newResolution);
-                    return LibJitsiMeet.createLocalTracks(options);
-                }
+                // if(error === JitsiTrackErrors.UNSUPPORTED_RESOLUTION) {
+                //     var oldResolution = options.resolution || '360';
+                //     var newResolution = getLowerResolution(oldResolution);
+                //     if(newResolution === null)
+                //         return Promise.reject(error);
+                //     options.resolution = newResolution;
+                //     logger.debug("Retry createLocalTracks with resolution",
+                //                 newResolution);
+                //     return LibJitsiMeet.createLocalTracks(options);
+                // }
                 return Promise.reject(error);
             }.bind(this));
     },
@@ -211,10 +211,10 @@ var LibJitsiMeet = {
      * Represents a hub/namespace for utility functionality which may be of
      * interest to LibJitsiMeet clients.
      */
-    util: {
-        ScriptUtil: ScriptUtil,
-        RTCUIHelper: RTCUIHelper
-    }
+    // util: {
+    //     ScriptUtil: ScriptUtil,
+    //     RTCUIHelper: RTCUIHelper
+    // }
 };
 
 // XXX JitsiConnection or the instances it initializes and is associated with

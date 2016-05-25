@@ -1,5 +1,5 @@
 var logger = require("jitsi-meet-logger").getLogger(__filename);
-var UsernameGenerator = require('../util/UsernameGenerator');
+// var UsernameGenerator = require('../util/UsernameGenerator');
 
 /**
  * Gets the localStorage of the browser. (Technically, gets the localStorage of
@@ -35,7 +35,8 @@ function generateJitsiMeetId() {
  * @returns {string} fake random username
  */
 function generateCallStatsUsername() {
-    var username = UsernameGenerator.generateUsername();
+    // var username = UsernameGenerator.generateUsername();
+    var username = 'Username_' + Math.floor(Math.random() * 100000000);
     logger.log('generated callstats uid', username);
 
     return username;
