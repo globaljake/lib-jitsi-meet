@@ -945,8 +945,9 @@ function setupListeners(conference) {
             jingleSession.acceptOffer(jingleOffer, null,
                 function (error) {
                     GlobalOnErrorHandler.callErrorHandler(error);
-                    logger.error(
-                        "Failed to accept incoming Jingle session", error);
+                    // logger.error(
+                    //     "Failed to accept incoming Jingle session", error);
+                    logger.warn("Failed to accept incoming Jingle session");
                 }
             );
             // Start callstats as soon as peerconnection is initialized,
@@ -1310,7 +1311,7 @@ function setupListeners(conference) {
                 conference.statistics.sendIceConnectionFailedEvent(pc);
                 conference.room.eventEmitter.emit(
                     XMPPEvents.CONFERENCE_SETUP_FAILED,
-                    new Error("ICE fail")); 
+                    new Error("ICE fail"));
             });
 
         conference.rtc.addListener(RTCEvents.TRACK_ATTACHED,

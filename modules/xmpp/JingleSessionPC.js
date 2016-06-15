@@ -222,8 +222,9 @@ JingleSessionPC.prototype.sendIceCandidates = function (candidates) {
     //logger.log('was this the last candidate', this.lasticecandidate);
     this.connection.sendIQ(
         cand, null, this.newJingleErrorHandler(cand, function (error) {
-            GlobalOnErrorHandler.callErrorHandler(
-                new Error("Jingle error: " + JSON.stringify(error)));
+            logger.warn('GlobalOnErrorHandler: Jingle Error');
+            // GlobalOnErrorHandler.callErrorHandler(
+            //     new Error("Jingle error: " + JSON.stringify(error)));
         }), IQ_TIMEOUT);
 };
 
@@ -1004,8 +1005,9 @@ JingleSessionPC.prototype.notifyMySSRCUpdate = function (old_sdp, new_sdp) {
         logger.info("Sending source-remove", remove.tree());
         this.connection.sendIQ(
             remove, null, this.newJingleErrorHandler(remove, function (error) {
-                GlobalOnErrorHandler.callErrorHandler(
-                    new Error("Jingle error: " + JSON.stringify(error)));
+                logger.warn('GlobalOnErrorHandler: Jingle Error');
+                // GlobalOnErrorHandler.callErrorHandler(
+                //     new Error("Jingle error: " + JSON.stringify(error)));
             }), IQ_TIMEOUT);
     } else {
         logger.log('removal not necessary');
@@ -1029,8 +1031,9 @@ JingleSessionPC.prototype.notifyMySSRCUpdate = function (old_sdp, new_sdp) {
         logger.info("Sending source-add", add.tree());
         this.connection.sendIQ(
             add, null, this.newJingleErrorHandler(add, function (error) {
-                GlobalOnErrorHandler.callErrorHandler(
-                    new Error("Jingle error: " + JSON.stringify(error)));
+                logger.warn('GlobalOnErrorHandler: Jingle Error');
+                // GlobalOnErrorHandler.callErrorHandler(
+                //     new Error("Jingle error: " + JSON.stringify(error)));
             }), IQ_TIMEOUT);
     } else {
         logger.log('addition not necessary');
@@ -1080,7 +1083,8 @@ JingleSessionPC.prototype.newJingleErrorHandler = function(request, failureCb) {
 
         error.session = this;
 
-        logger.error("Jingle error", error);
+        // logger.error("Jingle error", error);
+        logger.warn("Jingle error");
         if (failureCb) {
             failureCb(error);
         }
