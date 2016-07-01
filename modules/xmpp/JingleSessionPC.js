@@ -1301,7 +1301,7 @@ JingleSessionPC.prototype.fixSourceAddJingle = function (jingle) {
                 ssrcObj.mtype + "\"]>description");
             if(!desc || !desc.length)
                 return;
-            ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.ssrcs && ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
                 var sourceNode = desc.find(">source[ssrc=\"" +
                     ssrc + "\"]");
                 sourceNode.remove();
@@ -1322,7 +1322,7 @@ JingleSessionPC.prototype.fixSourceAddJingle = function (jingle) {
         ssrcs.forEach(function (ssrcObj) {
             var desc = createDescriptionNode(jingle, ssrcObj.mtype);
             var cname = Math.random().toString(36).substring(2);
-            ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.ssrcs && ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
                 var sourceNode = desc.find(">source[ssrc=\"" +ssrc + "\"]");
                 sourceNode.remove();
                 var sourceXML = "<source " +
@@ -1360,7 +1360,7 @@ JingleSessionPC.prototype.fixSourceRemoveJingle = function(jingle) {
     this.modifiedSSRCs["mute"] = [];
     if(ssrcs && ssrcs.length)
         ssrcs.forEach(function (ssrcObj) {
-            ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.ssrcs && ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
                 var sourceNode = $(jingle.tree()).find(">jingle>content[name=\"" +
                     ssrcObj.mtype + "\"]>description>source[ssrc=\"" +
                     ssrc + "\"]");
@@ -1380,7 +1380,7 @@ JingleSessionPC.prototype.fixSourceRemoveJingle = function(jingle) {
     if(ssrcs && ssrcs.length)
         ssrcs.forEach(function (ssrcObj) {
             var desc = createDescriptionNode(jingle, ssrcObj.mtype);
-            ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.ssrcs && ssrcObj.ssrc.ssrcs.forEach(function (ssrc) {
                 var sourceNode = desc.find(">source[ssrc=\"" +ssrc + "\"]");
                 if(!sourceNode || !sourceNode.length) {
                     //Maybe we have to include cname, msid, etc here?
