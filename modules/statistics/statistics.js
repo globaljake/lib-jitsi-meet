@@ -73,16 +73,19 @@ function Statistics(xmpp, options) {
         loadCallStatsAPI();
     this.callStats = null;
 
-    // audioLevelsInterval = 200 unless overridden in the config
-    this.audioLevelsInterval
-        = typeof this.options.audioLevelsInterval !== 'undefined'
-                ? this.options.audioLevelsInterval : 200;
     /**
      * Send the stats already saved in rtpStats to be logged via the focus.
      */
     this.logStatsIntervalId = null;
 }
 Statistics.audioLevelsEnabled = false;
+Statistics.audioLevelsInterval = 200;
+
+/**
+ * Array of callstats instances. Used to call Statistics static methods and
+ * send stats to all cs instances.
+ */
+Statistics.callsStatsInstances = [];
 
 Statistics.prototype.startRemoteStats = function (peerconnection) {
     if(!Statistics.audioLevelsEnabled)
@@ -92,8 +95,8 @@ Statistics.prototype.startRemoteStats = function (peerconnection) {
 
     try {
         this.rtpStats
-            = new RTPStats(peerconnection, 
-                    this.audioLevelsInterval, 2000, this.eventEmitter);
+            = new RTPStats(peerconnection,
+                    Statistics.audioLevelsInterval, 2000, this.eventEmitter);
         this.rtpStats.start();
     } catch (e) {
         this.rtpStats = null;
@@ -114,7 +117,8 @@ Statistics.localStats = [];
 Statistics.startLocalStats = function (stream, callback) {
     if(!Statistics.audioLevelsEnabled)
         return;
-    var localStats = new LocalStats(stream, this.audioLevelsInterval, callback);
+    var localStats = new LocalStats(stream, Statistics.audioLevelsInterval,
+        callback);
     this.localStats.push(localStats);
     localStats.start();
 };
@@ -194,6 +198,7 @@ Statistics.prototype.stopRemoteStats = function () {
 Statistics.prototype.startCallStats = function (session, settings) {
     if(this.callStatsIntegrationEnabled && !this.callstats) {
         this.callstats = new CallStats(session, settings, this.options);
+        Statistics.callsStatsInstances.push(this.callstats);
     }
 };
 
@@ -247,6 +252,21 @@ Statistics.prototype.sendDominantSpeakerEvent = function () {
 };
 
 /**
+ * Notifies about active device.
+ * @param {{deviceList: {String:String}}} devicesData - list of devices with
+ *      their data
+ */
+Statistics.sendActiveDeviceListEvent = function (devicesData) {
+    if (Statistics.callsStatsInstances.length) {
+        Statistics.callsStatsInstances.forEach(function (cs) {
+            CallStats.sendActiveDeviceListEvent(devicesData, cs);
+        });
+    } else {
+        CallStats.sendActiveDeviceListEvent(devicesData, null);
+    }
+};
+
+/**
  * Lets the underlying statistics module know where is given SSRC rendered by
  * providing renderer tag ID.
  * @param ssrc {number} the SSRC of the stream
@@ -270,27 +290,23 @@ function (ssrc, isLocal, usageLabel, containerId) {
  *
  * @param {Error} e error to send
  */
-Statistics.prototype.sendGetUserMediaFailed = function (e) {
-    if(this.callstats) {
+Statistics.sendGetUserMediaFailed = function (e) {
+
+    if (Statistics.callsStatsInstances.length) {
+        Statistics.callsStatsInstances.forEach(function (cs) {
+            CallStats.sendGetUserMediaFailed(
+                e instanceof JitsiTrackError
+                    ? formatJitsiTrackErrorForCallStats(e)
+                    : e,
+                cs);
+        });
+    } else {
         CallStats.sendGetUserMediaFailed(
             e instanceof JitsiTrackError
                 ? formatJitsiTrackErrorForCallStats(e)
                 : e,
-            this.callstats);
+            null);
     }
-};
-
-/**
- * Notifies CallStats that getUserMedia failed.
- *
- * @param {Error} e error to send
- */
-Statistics.sendGetUserMediaFailed = function (e) {
-    CallStats.sendGetUserMediaFailed(
-        e instanceof JitsiTrackError
-            ? formatJitsiTrackErrorForCallStats(e)
-            : e,
-        null);
 };
 
 /**
@@ -349,23 +365,18 @@ Statistics.prototype.sendAddIceCandidateFailed = function (e, pc) {
 };
 
 /**
- * Notifies CallStats that there is an unhandled error on the page.
+ * Adds to CallStats an application log.
  *
- * @param {Error} e error to send
- * @param {RTCPeerConnection} pc connection on which failure occured.
+ * @param {String} a log message to send or an {Error} object to be reported
  */
-Statistics.prototype.sendUnhandledError = function (e) {
-    if(this.callstats)
-        CallStats.sendUnhandledError(e, this.callstats);
-};
-
-/**
- * Notifies CallStats that there is unhandled exception.
- *
- * @param {Error} e error to send
- */
-Statistics.sendUnhandledError = function (e) {
-    CallStats.sendUnhandledError(e, null);
+Statistics.sendLog = function (m) {
+    if (Statistics.callsStatsInstances.length) {
+        Statistics.callsStatsInstances.forEach(function (cs) {
+            CallStats.sendApplicationLog(m, cs);
+        });
+    } else {
+        CallStats.sendApplicationLog(m, null);
+    }
 };
 
 /**
@@ -380,5 +391,18 @@ Statistics.prototype.sendFeedback = function(overall, detailed) {
 };
 
 Statistics.LOCAL_JID = require("../../service/statistics/constants").LOCAL_JID;
+
+/**
+ * Reports global error to CallStats.
+ *
+ * @param {Error} error
+ */
+Statistics.reportGlobalError = function (error) {
+    if (error instanceof JitsiTrackError && error.gum) {
+        Statistics.sendGetUserMediaFailed(error);
+    } else {
+        Statistics.sendLog(error);
+    }
+};
 
 module.exports = Statistics;

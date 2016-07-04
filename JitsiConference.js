@@ -47,7 +47,6 @@ function JitsiConference(options) {
     this.room.updateDeviceAvailability(RTC.getDeviceAvailability());
     this.rtc = new RTC(this.room, options);
     this.statistics = new Statistics(this.xmpp, {
-        audioLevelsInterval: this.options.config.audioLevelsInterval,
         callStatsID: this.options.config.callStatsID,
         callStatsSecret: this.options.config.callStatsSecret,
         disableThirdPartyRequests:
@@ -55,13 +54,6 @@ function JitsiConference(options) {
         roomName: this.options.name
     });
     setupListeners(this);
-    var JitsiMeetJS = this.connection.JitsiMeetJS;
-    JitsiMeetJS._gumFailedHandler.push(function(error) {
-        this.statistics.sendGetUserMediaFailed(error);
-    }.bind(this));
-    JitsiMeetJS._globalOnErrorHandler.push(function(error) {
-        this.statistics.sendUnhandledError(error);
-    }.bind(this));
     this.participants = {};
     this.lastDominantSpeaker = null;
     this.dtmfManager = null;
@@ -316,17 +308,27 @@ JitsiConference.prototype.setSubject = function (subject) {
  * Adds JitsiLocalTrack object to the conference.
  * @param track the JitsiLocalTrack object.
  * @returns {Promise<JitsiLocalTrack>}
- * @throws will throw and error if track is video track
- * and there is already another video track in the conference.
+ * @throws {Error} if the specified track is a video track and there is already
+ * another video track in the conference.
  */
 JitsiConference.prototype.addTrack = function (track) {
-    if(track.disposed)
-    {
+    if (track.disposed) {
         throw new JitsiTrackError(JitsiTrackErrors.TRACK_IS_DISPOSED);
     }
 
-    if (track.isVideoTrack() && this.rtc.getLocalVideoTrack()) {
-        throw new Error("cannot add second video track to the conference");
+    if (track.isVideoTrack()) {
+        // Ensure there's exactly 1 local video track in the conference.
+        var localVideoTrack = this.rtc.getLocalVideoTrack();
+        if (localVideoTrack) {
+            // Don't be excessively harsh and severe if the API client happens
+            // to attempt to add the same local video track twice.
+            if (track === localVideoTrack) {
+                return Promise.resolve(track);
+            } else {
+                throw new Error(
+                        "cannot add second video track to the conference");
+            }
+        }
     }
 
     track.ssrcHandler = function (conference, ssrcMap) {
@@ -339,6 +341,18 @@ JitsiConference.prototype.addTrack = function (track) {
     this.room.addListener(XMPPEvents.SENDRECV_STREAMS_CHANGED,
         track.ssrcHandler);
 
+    if(track.isAudioTrack() || (track.isVideoTrack() &&
+        track.videoType !== "desktop")) {
+        // Report active device to statistics
+        var devices = RTC.getCurrentlyAvailableMediaDevices();
+        device = devices.find(function (d) {
+            return d.kind === track.getTrack().kind + 'input'
+                && d.label === track.getTrack().label;
+        });
+        if(device)
+            Statistics.sendActiveDeviceListEvent(
+                RTC.getEventDataForActiveDevice(device));
+    }
     return new Promise(function (resolve, reject) {
         this.room.addStream(track.getOriginalStream(), function () {
             if (track.isVideoTrack()) {
@@ -901,6 +915,13 @@ JitsiConference.prototype.getConnectionTimes = function () {
 };
 
 /**
+ * Sets a property for the local participant.
+ */
+JitsiConference.prototype.setLocalParticipantProperty = function(name, value) {
+    this.sendCommand("jitsi_participant_" + name, {value: value});
+};
+
+/**
  * Sends the given feedback through CallStats if enabled.
  *
  * @param overallFeedback an integer between 1 and 5 indicating the
@@ -1064,6 +1085,16 @@ function setupListeners(conference) {
     conference.room.addListener(XMPPEvents.FOCUS_LEFT, function () {
         conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_FAILED, JitsiConferenceErrors.FOCUS_LEFT);
     });
+    conference.room.setParticipantPropertyListener(function (node, from) {
+        var participant = conference.getParticipantById(from);
+        if (!participant) {
+            return;
+        }
+
+        participant.setProperty(
+            node.tagName.substring("jitsi_participant_".length),
+            node.value);
+    });
 //    FIXME
 //    conference.room.addListener(XMPPEvents.MUC_JOINED, function () {
 //        conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_LEFT);
@@ -1080,6 +1111,16 @@ function setupListeners(conference) {
 
     conference.room.addListener(XMPPEvents.LOCAL_ROLE_CHANGED, function (role) {
         conference.eventEmitter.emit(JitsiConferenceEvents.USER_ROLE_CHANGED, conference.myUserId(), role);
+
+        // log all events for the recorder operated by the moderator
+        if (conference.statistics && conference.isModerator()) {
+            conference.on(JitsiConferenceEvents.RECORDER_STATE_CHANGED,
+                function (status, error) {
+                    Statistics.sendLog(
+                        "[Recorder] status: " + status
+                            + (error? " error: " + error : ""));
+                });
+        }
     });
     conference.room.addListener(XMPPEvents.MUC_ROLE_CHANGED, conference.onUserRoleChanged.bind(conference));
 
