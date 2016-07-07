@@ -1306,7 +1306,7 @@ JingleSessionPC.prototype.fixSourceAddJingle = function (jingle) {
                     ssrc + "\"]");
                 sourceNode.remove();
             });
-            ssrcObj.ssrc.groups.forEach(function (group) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.groups && ssrcObj.ssrc.groups.forEach(function (group) {
                 var groupNode = desc.find(">ssrc-group[semantics=\"" +
                     group.group.semantics + "\"]:has(source[ssrc=\"" +
                     group.primarySSRC +
@@ -1334,7 +1334,7 @@ JingleSessionPC.prototype.fixSourceAddJingle = function (jingle) {
                     " value=\"" + cname + "\" name=\"cname\" />" + "</source>";
                 desc.append(sourceXML);
             });
-            ssrcObj.ssrc.groups.forEach(function (group) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.groups && ssrcObj.ssrc.groups.forEach(function (group) {
                 var groupNode = desc.find(">ssrc-group[semantics=\"" +
                     group.group.semantics + "\"]:has(source[ssrc=\"" + group.primarySSRC +
                     "\"])");
@@ -1366,7 +1366,7 @@ JingleSessionPC.prototype.fixSourceRemoveJingle = function(jingle) {
                     ssrc + "\"]");
                 sourceNode.remove();
             });
-            ssrcObj.ssrc.groups.forEach(function (group) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.groups && ssrcObj.ssrc.groups.forEach(function (group) {
                 var groupNode = $(jingle.tree()).find(">jingle>content[name=\"" +
                     ssrcObj.mtype + "\"]>description>ssrc-group[semantics=\"" +
                     group.group.semantics + "\"]:has(source[ssrc=\"" + group.primarySSRC +
@@ -1389,7 +1389,7 @@ JingleSessionPC.prototype.fixSourceRemoveJingle = function(jingle) {
                         ssrc + "\"></source>");
                 }
             });
-            ssrcObj.ssrc.groups.forEach(function (group) {
+            ssrcObj && ssrcObj.ssrc && ssrcObj.ssrc.groups && ssrcObj.ssrc.groups.forEach(function (group) {
                 var groupNode = desc.find(">ssrc-group[semantics=\"" +
                     group.group.semantics + "\"]:has(source[ssrc=\"" + group.primarySSRC +
                      "\"])");
