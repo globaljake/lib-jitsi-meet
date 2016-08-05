@@ -7,6 +7,11 @@ var XMPPEvents = {
     // audio.
     AUDIO_MUTED_BY_FOCUS: "xmpp.audio_muted_by_focus",
     AUTHENTICATION_REQUIRED: "xmpp.authentication_required",
+    /**
+     * Max retries value of Moderator.allocateConferenceFocus failures is
+     * reached.
+     */
+    ALLOCATE_FOCUS_MAX_RETRIES_ERROR: "xmpp.allocate_focus_max_retries_error",
     BRIDGE_DOWN: "xmpp.bridge_down",
     // Designates an event indicating that an offer (e.g. Jingle
     // session-initiate) was received.
@@ -157,6 +162,12 @@ var XMPPEvents = {
     START_MUTED_FROM_FOCUS: "xmpp.start_muted_from_focus",
     // Designates an event indicating that the subject of the XMPP MUC has
     // changed.
-    SUBJECT_CHANGED: "xmpp.subject_changed"
+    SUBJECT_CHANGED: "xmpp.subject_changed",
+    // Designates an event indicating that the local ICE username fragment of
+    // the jingle session has changed.
+    LOCAL_UFRAG_CHANGED: "xmpp.local_ufrag_changed",
+    // Designates an event indicating that the local ICE username fragment of
+    // the jingle session has changed.
+    REMOTE_UFRAG_CHANGED: "xmpp.remote_ufrag_changed"
 };
 module.exports = XMPPEvents;

@@ -21,7 +21,7 @@ function createExpBackoffTimer(step) {
     };
 }
 
-function Moderator(roomName, xmpp, emitter, settings, options) {
+function Moderator(roomName, xmpp, emitter, settings, options, maxRetries) {
     this.roomName = roomName;
     this.xmppService = xmpp;
     this.getNextTimeout = createExpBackoffTimer(1000);
@@ -30,6 +30,8 @@ function Moderator(roomName, xmpp, emitter, settings, options) {
     this.externalAuthEnabled = false;
     this.settings = settings;
     this.options = options;
+    this.maxRetries = maxRetries || Infinity;
+    this.retries = 0;
 
     // Sip gateway can be enabled by configuring Jigasi host in config.js or
     // it will be enabled automatically if focus detects the component through
@@ -74,7 +76,7 @@ Moderator.prototype.isSipGatewayEnabled =  function () {
 Moderator.prototype.onMucMemberLeft =  function (jid) {
     logger.info("Someone left is it focus ? " + jid);
     var resource = Strophe.getResourceFromJid(jid);
-    if (resource === 'focus' && !this.xmppService.sessionTerminated) {
+    if (resource === 'focus') {
         logger.info(
             "Focus has left the room - leaving conference");
         this.eventEmitter.emit(XMPPEvents.FOCUS_LEFT);
@@ -236,6 +238,14 @@ Moderator.prototype.createConferenceIq =  function () {
             name: 'simulcastMode',
             value: 'rewriting'
         }).up();
+
+    if (this.options.conference.useRoomAsSharedDocumentName !== undefined) {
+        elem.c(
+            'property', {
+                name: 'useRoomAsSharedDocumentName',
+                value: this.options.conference.useRoomAsSharedDocumentName
+            }).up();
+    }
     elem.up();
     return elem;
 };
@@ -369,6 +379,12 @@ Moderator.prototype._allocateConferenceFocusError = function (error, callback) {
                 });
         return;
     }
+    if(this.retries >= this.maxRetries) {
+        self.eventEmitter.emit(
+                XMPPEvents.ALLOCATE_FOCUS_MAX_RETRIES_ERROR);
+        return;
+    }
+    this.retries++;
     var waitMs = self.getNextErrorTimeout();
     var errmsg = "Focus error, retry after "+ waitMs;
     GlobalOnErrorHandler.callErrorHandler(new Error(errmsg));

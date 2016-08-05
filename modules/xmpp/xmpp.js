@@ -3,6 +3,7 @@
 var logger = require("jitsi-meet-logger").getLogger(__filename);
 var EventEmitter = require("events");
 var Pako = require("pako");
+var RandomUtil = require("../util/RandomUtil");
 var RTCEvents = require("../../service/RTC/RTCEvents");
 var XMPPEvents = require("../../service/xmpp/XMPPEvents");
 var JitsiConnectionErrors = require("../../JitsiConnectionErrors");
@@ -41,9 +42,15 @@ function XMPP(options, token) {
     this.connectionTimes = {};
     this.forceMuted = false;
     this.options = options;
+    this.connectParams = {};
+    this.token = token;
     initStrophePlugins(this);
 
     this.connection = createConnection(options.bosh, token);
+
+    if(!this.connection.disco || !this.connection.caps)
+        throw new Error(
+            "Missing strophe-plugins (disco and caps plugins are required)!");
 
     // Initialize features advertised in disco-info
     this.initFeaturesList();
@@ -54,6 +61,34 @@ function XMPP(options, token) {
     // their own. However, it should be fairly easy for them to do that by
     // registering their unload handler before us.
     $(window).on('beforeunload unload', this.disconnect.bind(this));
+}
+
+/**
+ * Reloads the XMPP module
+ */
+XMPP.prototype.reload = function () {
+    this.disconnect();
+    this.connection.pause();
+    this.connection = createConnection(this.options.bosh, this.token);
+
+    // Initialize features advertised in disco-info
+    this.initFeaturesList();
+
+    //getData for attach
+    if(this.options.prebindURL &&
+        typeof(createConnectionExternally) === "function") {
+        var self = this;
+        createConnectionExternally(this.options.prebindURL, function (data) {
+            self.attach(data);
+        }, function (error) {
+            //connect
+            self.connect(this.connectParams.jid, this.connectParams.password);
+        });
+    } else {
+        //connect
+        this.connect(this.connectParams.jid, this.connectParams.password);
+    }
+
 }
 
 /**
@@ -218,12 +253,18 @@ XMPP.prototype._connect = function (jid, password) {
 }
 
 XMPP.prototype.connect = function (jid, password) {
+    this.connectParams = {
+        jid: jid,
+        password: password
+    };
     if (!jid) {
         var configDomain
             = this.options.hosts.anonymousdomain || this.options.hosts.domain;
         // Force authenticated domain if room is appended with '?login=true'
+        // or if we're joining with the token
         if (this.options.hosts.anonymousdomain
-                && window.location.search.indexOf("login=true") !== -1) {
+                && (window.location.search.indexOf("login=true") !== -1
+                    || this.options.token)) {
             configDomain = this.options.hosts.domain;
         }
         jid = configDomain || window.location.hostname;
@@ -231,7 +272,7 @@ XMPP.prototype.connect = function (jid, password) {
     return this._connect(jid, password);
 };
 
-XMPP.prototype.createRoom = function (roomName, options, settings) {
+XMPP.prototype.createRoom = function (roomName, options, settings, maxRetries) {
     var roomjid = roomName  + '@' + this.options.hosts.muc;
 
     if (options.useNicks) {
@@ -245,10 +286,14 @@ XMPP.prototype.createRoom = function (roomName, options, settings) {
 
         if (!authenticatedUser)
             tmpJid = tmpJid.substr(0, 8);
+        else
+            tmpJid += "-" + RandomUtil.randomHexString(6);
+
         roomjid += '/' + tmpJid;
     }
 
-    return this.connection.emuc.createRoom(roomjid, null, options, settings);
+    return this.connection.emuc.createRoom(roomjid, null, options, settings,
+        maxRetries);
 }
 
 XMPP.prototype.addListener = function(type, listener) {
