@@ -17,6 +17,7 @@ var JitsiTrackErrors = require("../../JitsiTrackErrors");
 var JitsiTrackError = require("../../JitsiTrackError");
 var MediaType = require("../../service/RTC/MediaType");
 var VideoType = require("../../service/RTC/VideoType");
+var CameraFacingMode = require("../../service/RTC/CameraFacingMode");
 var GlobalOnErrorHandler = require("../util/GlobalOnErrorHandler");
 
 var eventEmitter = new EventEmitter();
@@ -116,7 +117,7 @@ function setResolutionConstraints(constraints, resolution) {
  * @param {string} options.desktopStream
  * @param {string} options.cameraDeviceId
  * @param {string} options.micDeviceId
- * @param {'user'|'environment'} options.facingMode
+ * @param {CameraFacingMode} options.facingMode
  * @param {bool} firefox_fake_device
  */
 function getConstraints(um, options) {
@@ -153,12 +154,13 @@ function getConstraints(um, options) {
             // TODO: Maybe use "exact" syntax if options.facingMode is defined,
             // but this probably needs to be decided when updating other
             // constraints, as we currently don't use "exact" syntax anywhere.
-            if (isNewStyleConstraintsSupported) {
-                constraints.video.facingMode = options.facingMode || 'user';
-            }
+            var facingMode = options.facingMode || CameraFacingMode.USER;
 
+            if (isNewStyleConstraintsSupported) {
+                constraints.video.facingMode = facingMode;
+            }
             constraints.video.optional.push({
-                facingMode: options.facingMode || 'user'
+                facingMode: facingMode
             });
         }
 
@@ -941,6 +943,7 @@ var RTCUtils = {
         var self = this;
 
         options = options || {};
+        var dsOptions = options.desktopSharingExtensionExternalInstallation;
         return new Promise(function (resolve, reject) {
             var successCallback = function (stream) {
                 resolve(handleLocalStream(stream, options.resolution));
@@ -971,7 +974,8 @@ var RTCUtils = {
 
                 if(screenObtainer.isSupported()){
                     deviceGUM["desktop"] = screenObtainer.obtainStream.bind(
-                        screenObtainer);
+                        screenObtainer,
+                        dsOptions);
                 }
                 // With FF/IE we can't split the stream into audio and video because FF
                 // doesn't support media stream constructors. So, we need to get the
@@ -1032,6 +1036,7 @@ var RTCUtils = {
                             }
                             if(hasDesktop) {
                                 screenObtainer.obtainStream(
+                                    dsOptions,
                                     function (desktopStream) {
                                         successCallback({audioVideo: stream,
                                             desktopStream: desktopStream});
@@ -1050,6 +1055,7 @@ var RTCUtils = {
                         options);
                 } else if (hasDesktop) {
                     screenObtainer.obtainStream(
+                        dsOptions,
                         function (stream) {
                             successCallback({desktopStream: stream});
                         }, function (error) {

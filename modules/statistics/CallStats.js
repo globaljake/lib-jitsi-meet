@@ -50,11 +50,13 @@ var callStats = null;
 function initCallback (err, msg) {
     logger.log("CallStats Status: err=" + err + " msg=" + msg);
 
-    // there is no lib, nothing to report to
-    if (err !== 'success')
-        return;
+    CallStats.initializeInProgress = false;
 
-    CallStats.initialized = true;
+    // there is no lib, nothing to report to
+    if (err !== 'success') {
+        CallStats.initializeFailed = true;
+        return;
+    }
 
     var ret = callStats.addNewFabric(this.peerconnection,
         Strophe.getResourceFromJid(this.session.peerjid),
@@ -64,8 +66,15 @@ function initCallback (err, msg) {
 
     var fabricInitialized = (ret.status === 'success');
 
-    if(!fabricInitialized)
+    if(!fabricInitialized) {
+        CallStats.initializeFailed = true;
         console.log("callstats fabric not initilized", ret.message);
+        return;
+    }
+
+    CallStats.initializeFailed = false;
+    CallStats.initialized = true;
+    CallStats.feedbackEnabled = true;
 
     // notify callstats about failures if there were any
     if (CallStats.reportsQueue.length) {
@@ -129,12 +138,8 @@ function _try_catch (f) {
  */
 var CallStats = _try_catch(function(jingleSession, Settings, options) {
     try{
-        //check weather that should work with more than 1 peerconnection
-        if(!callStats) {
-            callStats = new callstats($, io, jsSHA);
-        } else {
-            return;
-        }
+        CallStats.feedbackEnabled = false;
+        callStats = new callstats($, io, jsSHA);
 
         this.session = jingleSession;
         this.peerconnection = jingleSession.peerconnection.peerconnection;
@@ -145,9 +150,13 @@ var CallStats = _try_catch(function(jingleSession, Settings, options) {
         // The confID is case sensitive!!!
         this.confID = location.hostname + "/" + options.roomName;
 
+        this.callStatsID = options.callStatsID;
+        this.callStatsSecret = options.callStatsSecret;
+
+        CallStats.initializeInProgress = true;
         //userID is generated or given by the origin server
-        callStats.initialize(options.callStatsID,
-            options.callStatsSecret,
+        callStats.initialize(this.callStatsID,
+            this.callStatsSecret,
             this.userID,
             initCallback.bind(this));
 
@@ -172,6 +181,43 @@ CallStats.reportsQueue = [];
  * @type {boolean}
  */
 CallStats.initialized = false;
+
+/**
+ * Whether we are in progress of initializing.
+ * @type {boolean}
+ */
+CallStats.initializeInProgress = false;
+
+/**
+ * Whether we tried to initialize and it failed.
+ * @type {boolean}
+ */
+CallStats.initializeFailed = false;
+
+/**
+ * Shows weather sending feedback is enabled or not
+ * @type {boolean}
+ */
+CallStats.feedbackEnabled = false;
+
+/**
+ * Checks whether we need to re-initialize callstats and starts the process.
+ * @private
+ */
+CallStats._checkInitialize = function () {
+    if (CallStats.initialized || !CallStats.initializeFailed
+        || !callStats || CallStats.initializeInProgress)
+        return;
+
+    // callstats object created, not initialized and it had previously failed,
+    // and there is no init in progress, so lets try initialize it again
+    CallStats.initializeInProgress = true;
+    callStats.initialize(
+        callStats.callStatsID,
+        callStats.callStatsSecret,
+        callStats.userID,
+        initCallback.bind(callStats));
+};
 
 /**
  * Type of pending reports, can be event or an error.
@@ -243,6 +289,7 @@ function (ssrc, isLocal, usageLabel, containerId) {
                     containerId: containerId
                 }
             });
+            CallStats._checkInitialize();
         }
     }).bind(this)();
 };
@@ -316,6 +363,7 @@ CallStats._reportEvent = function (event, eventData) {
                 type: reportType.EVENT,
                 data: {event: event, eventData: eventData}
             });
+        CallStats._checkInitialize();
     }
 };
 
@@ -361,7 +409,7 @@ CallStats.prototype.sendIceConnectionFailedEvent = _try_catch(function (pc, cs){
  */
 CallStats.prototype.sendFeedback = _try_catch(
 function(overallFeedback, detailedFeedback) {
-    if(!CallStats.initialized) {
+    if(!CallStats.feedbackEnabled) {
         return;
     }
     var feedbackString =    '{"userID":"' + this.userID + '"' +
@@ -393,6 +441,7 @@ CallStats._reportError = function (type, e, pc) {
             type: reportType.ERROR,
             data: { type: type, error: e, pc: pc}
         });
+        CallStats._checkInitialize();
     }
     // else just ignore it
 };
@@ -477,8 +526,12 @@ CallStats.sendApplicationLog = _try_catch(function (e, cs) {
  * Clears allocated resources.
  */
 CallStats.dispose = function () {
-    callStats = null;
+    // The next line is commented because we need to be able to send feedback
+    // even after the conference has been destroyed.
+    // callStats = null;
     CallStats.initialized = false;
+    CallStats.initializeFailed = false;
+    CallStats.initializeInProgress = false;
 };
 
 module.exports = CallStats;

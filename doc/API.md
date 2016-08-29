@@ -50,6 +50,8 @@ The ```options``` parameter is JS object with the following properties:
     9. disableAudioLevels - boolean property. Enables/disables audio levels.
     10. disableSimulcast - boolean property. Enables/disables simulcast.
     11. enableWindowOnErrorHandler - boolean property (default false). Enables/disables attaching global onerror handler (window.onerror).
+    12. disableThirdPartyRequests - if true - callstats will be disabled and the callstats API won't be included.
+    13. analyticsScriptUrl - (optional) custom url to search for the analytics lib, if missing js file will be expected to be next to the library file (the location it is sourced from) 
 
 * ```JitsiMeetJS.JitsiConnection``` - the ```JitsiConnection``` constructor. You can use that to create new server connection.
 
@@ -167,6 +169,7 @@ JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
         - NOT_FOUND - getUserMedia-related error, indicates that requested device was not found.
         - CONSTRAINT_FAILED - getUserMedia-related error, indicates that some of requested constraints in getUserMedia call were not satisfied.
         - TRACK_IS_DISPOSED - an error which indicates that track has been already disposed and cannot be longer used.
+        - TRACK_NO_STREAM_FOUND - an error which indicates that track has no MediaStream associated.
         - TRACK_MUTE_UNMUTE_IN_PROGRESS - an error which indicates that track is currently in progress of muting or unmuting itself.
         - CHROME_EXTENSION_GENERIC_ERROR - generic error for jidesha extension for Chrome.
         - CHROME_EXTENSION_USER_CANCELED - an error which indicates that user canceled screen sharing window selection dialog in jidesha extension for Chrome.
@@ -214,8 +217,6 @@ This objects represents the server connection. You can create new ```JitsiConnec
         3. jirecon
         4. callStatsID - callstats credentials
         5. callStatsSecret - callstats credentials
-        6. disableThirdPartyRequests - if true - callstats will be disabled and
-        the callstats API won't be included.
         **NOTE: if 4 and 5 are set the library is going to send events to callstats. Otherwise the callstats integration will be disabled.**
 
 5. addEventListener(event, listener) - Subscribes the passed listener to the event.

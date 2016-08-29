@@ -7,7 +7,9 @@ var JitsiTrackErrors = require("../../JitsiTrackErrors");
 var JitsiTrackError = require("../../JitsiTrackError");
 var RTCEvents = require("../../service/RTC/RTCEvents");
 var RTCUtils = require("./RTCUtils");
+var MediaType = require('../../service/RTC/MediaType');
 var VideoType = require('../../service/RTC/VideoType');
+var CameraFacingMode = require('../../service/RTC/CameraFacingMode');
 
 /**
  * Represents a single media track(either audio or video).
@@ -18,10 +20,11 @@ var VideoType = require('../../service/RTC/VideoType');
  * @param videoType the VideoType of the JitsiRemoteTrack
  * @param resolution the video resoultion if it's a video track
  * @param deviceId the ID of the local device for this track
+ * @param facingMode the camera facing mode used in getUserMedia call
  * @constructor
  */
 function JitsiLocalTrack(stream, track, mediaType, videoType, resolution,
-                         deviceId) {
+                         deviceId, facingMode) {
     var self = this;
 
     JitsiTrack.call(this,
@@ -39,6 +42,12 @@ function JitsiLocalTrack(stream, track, mediaType, videoType, resolution,
     this.startMuted = false;
     this.initialMSID = this.getMSID();
     this.inMuteOrUnmuteProgress = false;
+
+    /**
+     * The facing mode of the camera from which this JitsiLocalTrack instance
+     * was obtained.
+     */
+    this._facingMode = facingMode;
 
     // Currently there is no way to know the MediaStreamTrack ended due to to
     // device disconnect in Firefox through e.g. "readyState" property. Instead
@@ -131,157 +140,197 @@ JitsiLocalTrack.prototype.unmute = function () {
 
 /**
  * Creates Promise for mute/unmute operation.
- * @param track the track that will be muted/unmuted
- * @param mute whether to mute or unmute the track
+ *
+ * @param {JitsiLocalTrack} track - The track that will be muted/unmuted.
+ * @param {boolean} mute - Whether to mute or unmute the track.
+ * @returns {Promise}
  */
-function createMuteUnmutePromise(track, mute)
-{
-    return new Promise(function (resolve, reject) {
+function createMuteUnmutePromise(track, mute) {
+    if (track.inMuteOrUnmuteProgress) {
+        return Promise.reject(
+            new JitsiTrackError(JitsiTrackErrors.TRACK_MUTE_UNMUTE_IN_PROGRESS)
+        );
+    }
 
-        if(this.inMuteOrUnmuteProgress) {
-            reject(new JitsiTrackError(
-                JitsiTrackErrors.TRACK_MUTE_UNMUTE_IN_PROGRESS));
-            return;
-        }
-        this.inMuteOrUnmuteProgress = true;
+    track.inMuteOrUnmuteProgress = true;
 
-        this._setMute(mute,
-            function(){
-                this.inMuteOrUnmuteProgress = false;
-                resolve();
-            }.bind(this),
-            function(status){
-                this.inMuteOrUnmuteProgress = false;
-                reject(status);
-            }.bind(this));
-    }.bind(track));
+    return track._setMute(mute)
+        .then(function() {
+            track.inMuteOrUnmuteProgress = false;
+        })
+        .catch(function(status) {
+            track.inMuteOrUnmuteProgress = false;
+            throw status;
+        });
 }
 
 /**
  * Mutes / unmutes the track.
- * @param mute {boolean} if true the track will be muted. Otherwise the track
+ *
+ * @param {boolean} mute - If true the track will be muted. Otherwise the track
  * will be unmuted.
+ * @private
+ * @returns {Promise}
  */
-JitsiLocalTrack.prototype._setMute = function (mute, resolve, reject) {
+JitsiLocalTrack.prototype._setMute = function (mute) {
     if (this.isMuted() === mute) {
-        resolve();
-        return;
+        return Promise.resolve();
     }
+
+    var promise = Promise.resolve();
+    var self = this;
+
+    // Local track can be used out of conference, so we need to handle that
+    // case and mark that track should start muted or not when added to
+    // conference.
     if(!this.conference || !this.conference.room) {
         this.startMuted = mute;
-        resolve();
-        return;
     }
-    var isAudio = this.isAudioTrack();
+
     this.dontFireRemoveEvent = false;
 
-    var setStreamToNull = false;
-    // the callback that will notify that operation had finished
-    var callbackFunction = function() {
-
-        if(setStreamToNull)
-            this.stream = null;
-        this.eventEmitter.emit(JitsiTrackEvents.TRACK_MUTE_CHANGED);
-
-        resolve();
-    }.bind(this);
-
-    if ((window.location.protocol != "https:") ||
-        (isAudio) || this.videoType === VideoType.DESKTOP ||
-        // FIXME FF does not support 'removeStream' method used to mute
+    // FIXME FF does not support 'removeStream' method used to mute
+    if (window.location.protocol !== "https:" ||
+        this.isAudioTrack() ||
+        this.videoType === VideoType.DESKTOP ||
         RTCBrowserType.isFirefox()) {
 
-        if (this.track)
+        if(this.track)
             this.track.enabled = !mute;
-        if(isAudio)
-            this.conference.room.setAudioMute(mute, callbackFunction);
-        else
-            this.conference.room.setVideoMute(mute, callbackFunction);
     } else {
-        if (mute) {
+        if(mute) {
             this.dontFireRemoveEvent = true;
-            this.conference.room.removeStream(this.stream, function () {
-                    RTCUtils.stopMediaStream(this.stream);
-                    setStreamToNull = true;
-                    if(isAudio)
-                        this.conference.room.setAudioMute(mute,
-                            callbackFunction);
-                    else
-                        this.conference.room.setVideoMute(mute,
-                            callbackFunction);
-                    //FIXME: Maybe here we should set the SRC for the containers to something
-                }.bind(this),
-                function (error) {
-                    reject(error);
-                }, {mtype: this.type, type: "mute", ssrc: this.ssrc});
 
+            promise = this._removeStreamFromConferenceAsMute()
+                .then(function() {
+                    //FIXME: Maybe here we should set the SRC for the containers
+                    // to something
+                    RTCUtils.stopMediaStream(self.stream);
+                    self.stream = null;
+                });
         } else {
-            var self = this;
-            // FIXME why are we doing all this audio type checks and
-            // convoluted scenarios if we're going this way only
-            // for VIDEO media and CAMERA type of video ?
+            // This path is only for camera.
             var streamOptions = {
-                devices: (isAudio ? ["audio"] : ["video"]),
-                resolution: self.resolution
+                cameraDeviceId: this.getDeviceId(),
+                devices: [ MediaType.VIDEO ],
+                facingMode: this.getCameraFacingMode(),
+                resolution: this.resolution
             };
-            if (isAudio) {
-                streamOptions['micDeviceId'] = self.getDeviceId();
-            } else if(self.videoType === VideoType.CAMERA) {
-                streamOptions['cameraDeviceId'] = self.getDeviceId();
-            }
-            RTCUtils.obtainAudioAndVideoPermissions(streamOptions)
+
+            promise = RTCUtils.obtainAudioAndVideoPermissions(streamOptions)
                 .then(function (streamsInfo) {
-                    var streamInfo = null;
-                    for(var i = 0; i < streamsInfo.length; i++) {
-                        if(streamsInfo[i].mediaType === self.getType()) {
-                            streamInfo = streamsInfo[i];
-                            self.stream = streamInfo.stream;
-                            self.track = streamInfo.track;
-                            // This is not good when video type changes after
-                            // unmute, but let's not crash here
-                            if (self.videoType != streamInfo.videoType) {
-                                logger.warn(
-                                    "Video type has changed after unmute!",
-                                    self.videoType, streamInfo.videoType);
-                                self.videoType = streamInfo.videoType;
-                            }
-                            break;
+                    var mediaType = self.getType();
+                    var streamInfo = streamsInfo.find(function(info) {
+                        return info.mediaType === mediaType;
+                    });
+
+                    if(!streamInfo) {
+                        throw new JitsiTrackError(
+                            JitsiTrackErrors.TRACK_NO_STREAM_FOUND);
+                    }else {
+                        self.stream = streamInfo.stream;
+                        self.track = streamInfo.track;
+                        // This is not good when video type changes after
+                        // unmute, but let's not crash here
+                        if (self.videoType !== streamInfo.videoType) {
+                            logger.warn(
+                                "Video type has changed after unmute!",
+                                self.videoType, streamInfo.videoType);
+                            self.videoType = streamInfo.videoType;
                         }
                     }
 
-                    if(!streamInfo) {
-                        // FIXME Introduce a new JitsiTrackError.
-                        reject(new Error('track.no_stream_found'));
-                        return;
-                    }
+                    self.containers = self.containers.map(function(cont) {
+                        return RTCUtils.attachMediaStream(cont, self.stream);
+                    });
 
-                    for(var i = 0; i < self.containers.length; i++)
-                    {
-                        self.containers[i]
-                            = RTCUtils.attachMediaStream(
-                                    self.containers[i], self.stream);
-                    }
-
-                    self.conference.room.addStream(self.stream,
-                        function () {
-                            if(isAudio)
-                                self.conference.room.setAudioMute(
-                                    mute, callbackFunction);
-                            else
-                                self.conference.room.setVideoMute(
-                                    mute, callbackFunction);
-                        }, function (error) {
-                            reject(error);
-                        }, {
-                            mtype: self.type,
-                            type: "unmute",
-                            ssrc: self.ssrc,
-                            msid: self.getMSID()});
-                }).catch(function (error) {
-                    reject(error);
+                   return self._addStreamToConferenceAsUnmute();
                 });
         }
     }
+
+    return promise
+        .then(function() {
+            return self._sendMuteStatus(mute);
+        })
+        .then(function() {
+            self.eventEmitter.emit(JitsiTrackEvents.TRACK_MUTE_CHANGED);
+        });
+};
+
+/**
+ * Adds stream to conference and marks it as "unmute" operation.
+ *
+ * @private
+ * @returns {Promise}
+ */
+JitsiLocalTrack.prototype._addStreamToConferenceAsUnmute = function () {
+    if (!this.conference || !this.conference.room) {
+        return Promise.resolve();
+    }
+
+    var self = this;
+
+    return new Promise(function(resolve, reject) {
+        self.conference.room.addStream(
+            self.stream,
+            resolve,
+            reject,
+            {
+                mtype: self.type,
+                type: "unmute",
+                ssrc: self.ssrc,
+                msid: self.getMSID()
+            });
+    });
+};
+
+/**
+ * Removes stream from conference and marks it as "mute" operation.
+ *
+ * @private
+ * @returns {Promise}
+ */
+JitsiLocalTrack.prototype._removeStreamFromConferenceAsMute = function () {
+    if (!this.conference || !this.conference.room) {
+        return Promise.resolve();
+    }
+
+    var self = this;
+
+    return new Promise(function(resolve, reject) {
+        self.conference.room.removeStream(
+            self.stream,
+            resolve,
+            reject,
+            {
+                mtype: self.type,
+                type: "mute",
+                ssrc: self.ssrc
+            });
+    });
+};
+
+/**
+ * Sends mute status for a track to conference if any.
+ *
+ * @param {boolean} mute - If track is muted.
+ * @private
+ * @returns {Promise}
+ */
+JitsiLocalTrack.prototype._sendMuteStatus = function(mute) {
+    if (!this.conference || !this.conference.room) {
+        return Promise.resolve();
+    }
+
+    var self = this;
+
+    return new Promise(function(resolve) {
+        self.conference.room[
+            self.isAudioTrack()
+                ? 'setAudioMute'
+                : 'setVideoMute'](mute, resolve);
+    });
 };
 
 /**
@@ -395,5 +444,47 @@ JitsiLocalTrack.prototype.isLocal = function () {
 JitsiLocalTrack.prototype.getDeviceId = function () {
     return this._realDeviceId || this.deviceId;
 };
+
+/**
+ * Returns facing mode for video track from camera. For other cases (e.g. audio
+ * track or 'desktop' video track) returns undefined.
+ *
+ * @returns {CameraFacingMode|undefined}
+ */
+JitsiLocalTrack.prototype.getCameraFacingMode = function () {
+    if (this.isVideoTrack() && this.videoType === VideoType.CAMERA) {
+        // MediaStreamTrack#getSettings() is not implemented in many browsers,
+        // so we need feature checking here. Progress on the respective
+        // browser's implementation can be tracked at
+        // https://bugs.chromium.org/p/webrtc/issues/detail?id=2481 for Chromium
+        // and https://bugzilla.mozilla.org/show_bug.cgi?id=1213517 for Firefox.
+        // Even if a browser implements getSettings() already, it might still
+        // not return anything for 'facingMode'.
+        var trackSettings;
+
+        try {
+            trackSettings = this.track.getSettings();
+        } catch (e) {
+            // XXX React-native-webrtc, for example, defines
+            // MediaStreamTrack#getSettings() but the implementation throws a
+            // "Not implemented" Error.
+        }
+        if (trackSettings && 'facingMode' in trackSettings) {
+            return trackSettings.facingMode;
+        }
+
+        if (typeof this._facingMode !== 'undefined') {
+            return this._facingMode;
+        }
+
+        // In most cases we are showing a webcam. So if we've gotten here, it
+        // should be relatively safe to assume that we are probably showing
+        // the user-facing camera.
+        return CameraFacingMode.USER;
+    }
+
+    return undefined;
+};
+
 
 module.exports = JitsiLocalTrack;

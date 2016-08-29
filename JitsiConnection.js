@@ -2,6 +2,7 @@ var JitsiConference = require("./JitsiConference");
 var XMPP = require("./modules/xmpp/xmpp");
 var JitsiConnectionEvents = require("./JitsiConnectionEvents");
 var JitsiConnectionErrors = require("./JitsiConnectionErrors");
+var Statistics = require("./modules/statistics/statistics");
 
 /**
  * Creates new connection object for the Jitsi Meet server side video conferencing service. Provides access to the
@@ -17,20 +18,22 @@ function JitsiConnection(appID, token, options) {
     this.options = options;
     this.xmpp = new XMPP(options, token);
     this.conferences = {};
-    this.retryOnFail = 0;
-    this.addEventListener(JitsiConnectionEvents.CONNECTION_ESTABLISHED,
-        function () {
-            this.retryOnFail = 3;
-        }.bind(this));
 
     this.addEventListener(JitsiConnectionEvents.CONNECTION_FAILED,
         function (errType, msg) {
-            if(errType === JitsiConnectionErrors.OTHER_ERROR &&
-                (msg === "item-not-found" || msg === "host-unknown")) {
-                    // FIXME: don't report the error if we are going to reload
-                    this._reload();
-                }
+            // sends analytics and callstats event
+            Statistics.sendEventToAll('connection.failed.' + errType, msg);
         }.bind(this));
+
+    this.addEventListener(JitsiConnectionEvents.CONNECTION_DISCONNECTED,
+        function (msg) {
+            // we can see disconnects from normal tab closing of the browser
+            // and then there are no msgs, but we want to log only disconnects
+            // when there is real error
+            if(msg)
+                Statistics.analytics.sendEvent(
+                    'connection.disconnected.' + msg);
+        });
 }
 
 /**
@@ -54,41 +57,6 @@ JitsiConnection.prototype.connect = function (options) {
  */
 JitsiConnection.prototype.attach = function (options) {
     this.xmpp.attach(options);
-}
-
-/**
- * Reloads the JitsiConnection instance and all related conferences
- */
-JitsiConnection.prototype._reload = function () {
-    if(this.retryOnFail === 0)
-        return false;
-    this.retryOnFail--;
-    var states = {};
-    for(var name in this.conferences) {
-        states[name] = this.conferences[name].room.exportState();
-        this.conferences[name].leave(true);
-    }
-    this.connectionEstablishedHandler =
-        this._reloadConferences.bind(this, states);
-    this.addEventListener(JitsiConnectionEvents.CONNECTION_ESTABLISHED,
-        this.connectionEstablishedHandler);
-    this.xmpp.reload();
-    return true;
-}
-
-/**
- * Reloads all conferences related to this JitsiConnection instance
- * @param states {object} the exported states per conference
- */
-JitsiConnection.prototype._reloadConferences = function (states) {
-    this.removeEventListener(JitsiConnectionEvents.CONNECTION_ESTABLISHED,
-        this.connectionEstablishedHandler);
-    this.connectionEstablishedHandler = null;
-    states = states || {};
-    for(var name in this.conferences) {
-        this.conferences[name]._init({roomState: states[name]});
-        this.conferences[name].join();
-    }
 }
 
 /**
