@@ -11,6 +11,11 @@ var XMPPEvents = {
     // Designates an event indicating that an offer (e.g. Jingle
     // session-initiate) was received.
     CALL_INCOMING: "xmpp.callincoming.jingle",
+    // Triggered when Jicofo kills our media session, this can happen while
+    // we're still in the MUC, when it decides to terminate the media session.
+    // For example when the session is idle for too long, because we're the only
+    // person in the conference room.
+    CALL_ENDED: "xmpp.callended.jingle",
     CHAT_ERROR_RECEIVED: "xmpp.chat_error_received",
     CONFERENCE_SETUP_FAILED: "xmpp.conference_setup_failed",
     // Designates an event indicating that the connection to the XMPP server
@@ -79,6 +84,8 @@ var XMPPEvents = {
     // Designates an event indicating that the MUC role of a participant has
     // changed.
     MUC_ROLE_CHANGED: "xmpp.muc_role_changed",
+    // Designates an event indicating that the MUC has been locked or unlocked.
+    MUC_LOCK_CHANGED: "xmpp.muc_lock_changed",
     // Designates an event indicating that a participant in the XMPP MUC has
     // advertised that they have audio muted (or unmuted).
     PARTICIPANT_AUDIO_MUTED: "xmpp.audio_muted",
@@ -139,6 +146,17 @@ var XMPPEvents = {
      * Indicates that the local sendrecv streams in local SDP are changed.
      */
     SENDRECV_STREAMS_CHANGED: "xmpp.sendrecv_streams_changed",
+    /**
+     * Event fired when we do not get our 'session-accept' acknowledged by
+     * Jicofo. It most likely means that there is serious problem with our
+     * connection or XMPP server and we should reload the conference.
+     *
+     * We have seen that to happen in BOSH requests race condition when the BOSH
+     * request table containing the 'session-accept' was discarded by Prosody.
+     * Jicofo does send the RESULT immediately without any condition, so missing
+     * packets means that most likely it has never seen our IQ.
+     */
+    SESSION_ACCEPT_TIMEOUT: "xmpp.session_accept_timeout",
     // TODO: only used in a hack, should probably be removed.
     SET_LOCAL_DESCRIPTION_ERROR: 'xmpp.set_local_description_error',
 
@@ -157,6 +175,12 @@ var XMPPEvents = {
     START_MUTED_FROM_FOCUS: "xmpp.start_muted_from_focus",
     // Designates an event indicating that the subject of the XMPP MUC has
     // changed.
-    SUBJECT_CHANGED: "xmpp.subject_changed"
+    SUBJECT_CHANGED: "xmpp.subject_changed",
+    // Designates an event indicating that the local ICE username fragment of
+    // the jingle session has changed.
+    LOCAL_UFRAG_CHANGED: "xmpp.local_ufrag_changed",
+    // Designates an event indicating that the local ICE username fragment of
+    // the jingle session has changed.
+    REMOTE_UFRAG_CHANGED: "xmpp.remote_ufrag_changed"
 };
 module.exports = XMPPEvents;

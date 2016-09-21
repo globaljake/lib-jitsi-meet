@@ -1,28 +1,39 @@
 var JitsiConference = require("./JitsiConference");
-var XMPP = require("./modules/xmpp/xmpp");
+import * as JitsiConnectionErrors from "./JitsiConnectionErrors";
+import * as JitsiConnectionEvents from "./JitsiConnectionEvents";
+import XMPP from "./modules/xmpp/xmpp";
+var Statistics = require("./modules/statistics/statistics");
 
 /**
  * Creates new connection object for the Jitsi Meet server side video conferencing service. Provides access to the
  * JitsiConference interface.
- * @param JitsiMeetJS the JitsiMeetJS instance which is initializing the new
- * JitsiConnection instance
  * @param appID identification for the provider of Jitsi Meet video conferencing services.
  * @param token the JWT token used to authenticate with the server(optional)
  * @param options Object with properties / settings related to connection with the server.
  * @constructor
  */
-function JitsiConnection(JitsiMeetJS, appID, token, options) {
-    /**
-     * The {JitsiMeetJS} instance which has initialized this {JitsiConnection}
-     * instance.
-     * @public
-     */
-    this.JitsiMeetJS = JitsiMeetJS;
+function JitsiConnection(appID, token, options) {
     this.appID = appID;
     this.token = token;
     this.options = options;
     this.xmpp = new XMPP(options, token);
     this.conferences = {};
+
+    this.addEventListener(JitsiConnectionEvents.CONNECTION_FAILED,
+        function (errType, msg) {
+            // sends analytics and callstats event
+            Statistics.sendEventToAll('connection.failed.' + errType, msg);
+        }.bind(this));
+
+    this.addEventListener(JitsiConnectionEvents.CONNECTION_DISCONNECTED,
+        function (msg) {
+            // we can see disconnects from normal tab closing of the browser
+            // and then there are no msgs, but we want to log only disconnects
+            // when there is real error
+            if(msg)
+                Statistics.analytics.sendEvent(
+                    'connection.disconnected.' + msg);
+        });
 }
 
 /**

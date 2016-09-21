@@ -1,6 +1,6 @@
 /* jshint -W117 */
-
-var logger = require("jitsi-meet-logger").getLogger(__filename);
+import {getLogger} from "jitsi-meet-logger";
+const logger = getLogger(__filename);
 var JingleSession = require("./JingleSession");
 var TraceablePeerConnection = require("./TraceablePeerConnection");
 var MediaType = require("../../service/RTC/MediaType");
@@ -12,6 +12,7 @@ var XMPPEvents = require("../../service/xmpp/XMPPEvents");
 var RTCBrowserType = require("../RTC/RTCBrowserType");
 var RTC = require("../RTC/RTC");
 var GlobalOnErrorHandler = require("../util/GlobalOnErrorHandler");
+var Statistics = require("../statistics/statistics");
 
 /**
  * Constant tells how long we're going to wait for IQ response, before timeout
@@ -34,6 +35,16 @@ function JingleSessionPC(me, sid, peerjid, connection,
     this.removessrc = [];
     this.modifyingLocalStreams = false;
     this.modifiedSSRCs = {};
+
+    /**
+     * The local ICE username fragment for this session.
+     */
+    this.localUfrag = null;
+
+    /**
+     * The remote ICE username fragment for this session.
+     */
+    this.remoteUfrag = null;
 
     /**
      * A map that stores SSRCs of remote streams. And is used only locally
@@ -78,6 +89,7 @@ JingleSessionPC.prototype.doInitialize = function () {
             // complete.
             return;
         }
+        // XXX this is broken, candidate is not parsed.
         var candidate = ev.candidate;
         if (candidate) {
             // Discard candidates of disabled protocols.
@@ -121,6 +133,8 @@ JingleSessionPC.prototype.doInitialize = function () {
             self.peerconnection.iceConnectionState] = now;
         logger.log("(TIME) ICE " + self.peerconnection.iceConnectionState +
                     ":\t", now);
+        Statistics.analytics.sendEvent(
+            'ice.' + self.peerconnection.iceConnectionState, now);
         switch (self.peerconnection.iceConnectionState) {
             case 'connected':
 
@@ -422,15 +436,34 @@ JingleSessionPC.prototype.sendSessionAccept = function (localSDP,
     // Calling tree() to print something useful
     accept = accept.tree();
     logger.info("Sending session-accept", accept);
-
+    var self = this;
     this.connection.sendIQ(accept,
         success,
-        this.newJingleErrorHandler(accept, failure),
+        this.newJingleErrorHandler(accept, function (error) {
+            failure(error);
+            // 'session-accept' is a critical timeout and we'll have to restart
+            self.room.eventEmitter.emit(XMPPEvents.SESSION_ACCEPT_TIMEOUT);
+        }),
         IQ_TIMEOUT);
     // XXX Videobridge needs WebRTC's answer (ICE ufrag and pwd, DTLS
     // fingerprint and setup) ASAP in order to start the connection
     // establishment.
-    this.connection.flush();
+    //
+    // FIXME Flushing the connection at this point triggers an issue with BOSH
+    // request handling in Prosody on slow connections.
+    //
+    // The problem is that this request will be quite large and it may take time
+    // before it reaches Prosody. In the meantime Strophe may decide to send
+    // the next one. And it was observed that a small request with
+    // 'transport-info' usually follows this one. It does reach Prosody before
+    // the previous one was completely received. 'rid' on the server is
+    // increased and Prosody ignores the request with 'session-accept'. It will
+    // never reach Jicofo and everything in the request table is lost. Removing
+    // the flush does not guarantee it will never happen, but makes it much less
+    // likely('transport-info' is bundled with 'session-accept' and any
+    // immediate requests).
+    //
+    // this.connection.flush();
 };
 
 /**
@@ -774,6 +807,14 @@ JingleSessionPC.prototype._modifySources = function (successCallback, queueCallb
         GlobalOnErrorHandler.callErrorHandler(new Error(errmsg));
         queueCallback(err);
     };
+
+    var ufrag = getUfrag(sdp.raw);
+    if (ufrag != self.remoteUfrag) {
+        self.remoteUfrag = ufrag;
+        self.room.eventEmitter.emit(
+                XMPPEvents.REMOTE_UFRAG_CHANGED, ufrag);
+    }
+
     this.peerconnection.setRemoteDescription(
         new RTCSessionDescription({type: 'offer', sdp: sdp.raw}),
         function() {
@@ -795,6 +836,12 @@ JingleSessionPC.prototype._modifySources = function (successCallback, queueCallb
                     answer.sdp = modifiedAnswer.raw;
                     self.localSDP = new SDP(answer.sdp);
                     answer.sdp = self.localSDP.raw;
+                    var ufrag = getUfrag(answer.sdp);
+                    if (ufrag != self.localUfrag) {
+                        self.localUfrag = ufrag;
+                        self.room.eventEmitter.emit(
+                                XMPPEvents.LOCAL_UFRAG_CHANGED, ufrag);
+                    }
                     self.peerconnection.setLocalDescription(answer,
                         function() {
                             successCallback && successCallback();
@@ -1081,7 +1128,10 @@ JingleSessionPC.prototype.newJingleErrorHandler = function(request, failureCb) {
             error.source = request.tree();
         }
 
-        error.session = this;
+        // Commented to fix JSON.stringify(error) exception for circular
+        // dependancies when we print that error.
+        // FIXME: Maybe we can include part of the session object
+        // error.session = this;
 
         // logger.error("Jingle error", error);
         logger.warn("Jingle error");
@@ -1429,6 +1479,17 @@ function createDescriptionNode(jingle, mtype) {
         desc = content.find(">description");
     }
     return desc;
+}
+
+/**
+ * Extracts the ice username fragment from an SDP string.
+ */
+function getUfrag(sdp) {
+    var ufragLines = sdp.split('\n').filter(function(line) {
+        return line.startsWith("a=ice-ufrag:");});
+    if (ufragLines.length > 0) {
+        return ufragLines[0].substr("a=ice-ufrag:".length)
+    }
 }
 
 module.exports = JingleSessionPC;

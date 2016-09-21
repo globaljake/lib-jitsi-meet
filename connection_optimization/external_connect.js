@@ -39,6 +39,16 @@ function createConnectionExternally(webserviceUrl, success_callback,
             if (xhttp.status == HTTP_STATUS_OK) {
                 try {
                     var data = JSON.parse(xhttp.responseText);
+
+                    var proxyRegion = xhttp.getResponseHeader('X-Proxy-Region');
+                    var jitsiRegion = xhttp.getResponseHeader('X-Jitsi-Region');
+                    window.jitsiRegionInfo = {
+                        "ProxyRegion" : proxyRegion,
+                        "Region" : jitsiRegion,
+                        "Shard" : xhttp.getResponseHeader('X-Jitsi-Shard'),
+                        "CrossRegion": proxyRegion !== jitsiRegion ? 1 : 0
+                    };
+
                     success_callback(data);
                 } catch (e) {
                     error_callback(e);
@@ -50,9 +60,13 @@ function createConnectionExternally(webserviceUrl, success_callback,
         }
     };
 
+    xhttp.open("GET", webserviceUrl, true);
+
+    // Fixes external connect for IE
+    // The timeout property may be set only after calling the open() method
+    // and before calling the send() method.
     xhttp.timeout = 3000;
 
-    xhttp.open("GET", webserviceUrl, true);
     window.connectionTimes = {};
     var now = window.connectionTimes["external_connect.sending"] =
         window.performance.now();

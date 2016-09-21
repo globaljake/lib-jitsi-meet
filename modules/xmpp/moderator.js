@@ -74,7 +74,7 @@ Moderator.prototype.isSipGatewayEnabled =  function () {
 Moderator.prototype.onMucMemberLeft =  function (jid) {
     logger.info("Someone left is it focus ? " + jid);
     var resource = Strophe.getResourceFromJid(jid);
-    if (resource === 'focus' && !this.xmppService.sessionTerminated) {
+    if (resource === 'focus') {
         logger.info(
             "Focus has left the room - leaving conference");
         this.eventEmitter.emit(XMPPEvents.FOCUS_LEFT);
@@ -174,13 +174,11 @@ Moderator.prototype.createConferenceIq =  function () {
                 value: true
             }).up();
     //}
-    if (this.options.conference.enableLipSync !== undefined) {
-        elem.c(
-            'property', {
-                name: 'enableLipSync',
-                value: this.options.conference.enableLipSync
-            }).up();
-    }
+    elem.c(
+        'property', {
+            name: 'enableLipSync',
+            value: false !== this.options.connection.enableLipSync
+        }).up();
     if (this.options.conference.audioPacketDelay !== undefined) {
         elem.c(
             'property', {
@@ -236,6 +234,14 @@ Moderator.prototype.createConferenceIq =  function () {
             name: 'simulcastMode',
             value: 'rewriting'
         }).up();
+
+    if (this.options.conference.useRoomAsSharedDocumentName !== undefined) {
+        elem.c(
+            'property', {
+                name: 'useRoomAsSharedDocumentName',
+                value: this.options.conference.useRoomAsSharedDocumentName
+            }).up();
+    }
     elem.up();
     return elem;
 };
@@ -369,6 +375,12 @@ Moderator.prototype._allocateConferenceFocusError = function (error, callback) {
                 });
         return;
     }
+    if(this.retries >= this.maxRetries) {
+        self.eventEmitter.emit(
+                XMPPEvents.ALLOCATE_FOCUS_MAX_RETRIES_ERROR);
+        return;
+    }
+    this.retries++;
     var waitMs = self.getNextErrorTimeout();
     var errmsg = "Focus error, retry after "+ waitMs;
     GlobalOnErrorHandler.callErrorHandler(new Error(errmsg));

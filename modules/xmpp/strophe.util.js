@@ -2,12 +2,23 @@
 /**
  * Strophe logger implementation. Logs from level WARN and above.
  */
-var logger = require("jitsi-meet-logger").getLogger(__filename);
-var GlobalOnErrorHandler = require("../util/GlobalOnErrorHandler");
+import {getLogger} from "jitsi-meet-logger";
+const logger = getLogger(__filename);
+import GlobalOnErrorHandler from "../util/GlobalOnErrorHandler";
 
-module.exports = function () {
+export default function () {
 
     Strophe.log = function (level, msg) {
+        // Our global handler reports uncaught errors to the stats which may
+        // interpret those as partial call failure.
+        // Strophe log entry about secondary request timeout does not mean that
+        // it's a final failure(the request will be restarted), so we lower it's
+        // level here to a warning.
+        if (typeof msg === 'string' &&
+                msg.indexOf("Request ") !== -1 &&
+                msg.indexOf("timed out (secondary), restarting") !== -1) {
+            level = Strophe.LogLevel.WARN;
+        }
         switch (level) {
             case Strophe.LogLevel.WARN:
                 logger.warn("Strophe: " + msg);
@@ -45,4 +56,4 @@ module.exports = function () {
                 return "unknown";
         }
     };
-};
+}
