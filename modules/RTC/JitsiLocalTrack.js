@@ -1,16 +1,16 @@
 /* global __filename, Promise */
-var logger = require("jitsi-meet-logger").getLogger(__filename);
+var CameraFacingMode = require('../../service/RTC/CameraFacingMode');
 var JitsiTrack = require("./JitsiTrack");
-var RTCBrowserType = require("./RTCBrowserType");
 import JitsiTrackError from "../../JitsiTrackError";
 import * as JitsiTrackErrors from "../../JitsiTrackErrors";
 import * as JitsiTrackEvents from "../../JitsiTrackEvents";
+var logger = require("jitsi-meet-logger").getLogger(__filename);
+var MediaType = require('../../service/RTC/MediaType');
+var RTCBrowserType = require("./RTCBrowserType");
 var RTCEvents = require("../../service/RTC/RTCEvents");
 var RTCUtils = require("./RTCUtils");
-var MediaType = require('../../service/RTC/MediaType');
-var VideoType = require('../../service/RTC/VideoType');
-var CameraFacingMode = require('../../service/RTC/CameraFacingMode');
 var Statistics = require("../statistics/statistics");
+var VideoType = require('../../service/RTC/VideoType');
 
 /**
  * Represents a single media track(either audio or video).
@@ -140,12 +140,13 @@ JitsiLocalTrack.prototype._initNoDataFromSourceHandlers = function () {
         this._setHandler("track_mute", () => {
             if(this._checkForCameraIssues()) {
                 let now = window.performance.now();
-                this._noDataFromSourceTimeout = setTimeout(
-                    _onNoDataFromSourceError, 3000);
+                this._noDataFromSourceTimeout
+                    = setTimeout(_onNoDataFromSourceError, 3000);
                 this._setHandler("track_unmute", () => {
                     this._clearNoDataFromSourceMuteResources();
-                    Statistics.sendEventToAll(this.getType() + ".track_unmute",
-                        window.performance.now() - now);
+                    Statistics.sendEventToAll(
+                            this.getType() + ".track_unmute",
+                            window.performance.now() - now);
                 });
             }
         });
